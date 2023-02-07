@@ -22,13 +22,16 @@ s = None
 
 b, a = None, None
 d, c = None, None
+f, e = None, None
 
 norm = 0
 timeRecord, timeDiff = 0, 0
 
-num = 10
+fs = num = 100
+fdis = 10
 
-x_value, y_value, z_value = [0]*num, [0]*num, [0]*num
+x_value, y_value, z_value = np.array([0]*num), np.array([0]*num), np.array([0]*num)
+hp_x, hp_y, hp_z = np.array([0]*num), np.array([0]*num), np.array([0]*num)
 
 v_x, v_y, v_z = np.array([0]*num), np.array([0]*num), np.array([0]*num)
 v_hp_x, v_hp_y, v_hp_z = np.array([0]*num), np.array([0]*num), np.array([0]*num)
@@ -38,24 +41,31 @@ p_x, p_y, p_z = np.array([0]*num), np.array([0]*num), np.array([0]*num)
 p_hp_x, p_hp_y, p_hp_z = np.array([0]*num), np.array([0]*num), np.array([0]*num)
 pp_x, pp_y, pp_z = 0, 0, 0
 
-fs = 200
-
 def filterHG():
     global fs  # Sampling frequency
     # Generate the time vector properly
     # t = np.arange(1000) / fs
-    fc = 0.1  # Cut-off frequency of the filter
+    fc = 0.01  # Cut-off frequency of the filter
     w = fc / (fs / 2) # Normalize the frequency
-    b, a = signal.butter(2, w, 'highpass')
+    b, a = signal.butter(1, w, 'highpass')
     return [b, a]
+
+def filterHG2():
+    global fs  # Sampling frequency
+    # Generate the time vector properly
+    # t = np.arange(1000) / fs
+    fc = 2  # Cut-off frequency of the filter
+    w = fc / (fs / 2) # Normalize the frequency
+    f, e = signal.butter(1, w, 'lowpass')
+    return [f, e]
 
 def filterLW():
     global fs  # Sampling frequency
     # Generate the time vector properly
     # t = np.arange(1000) / fs
-    fc = 1  # Cut-off frequency of the filter
+    fc = 10  # Cut-off frequency of the filter
     w = fc / (fs / 2) # Normalize the frequency
-    d, c = signal.butter(2, w, 'lowpass')
+    d, c = signal.butter(1, w, 'lowpass')
     return [d, c]
 
 def getPos(x, y, z):
@@ -70,61 +80,127 @@ def getPos(x, y, z):
 
     global b, a
     global d, c
+    global f, e
+
+    # x_value.append(x)
+    # y_value.append(y)
+    # z_value.append(z)
+
+    global x_value, y_value, z_value
+    global hp_x, hp_y, hp_z
+
+    x_value = np.append(x_value, x)
+    y_value = np.append(y_value, y)
+    z_value = np.append(z_value, z)
+
+    temp_x = signal.filtfilt(b, a, x_value)
+    temp_y = signal.filtfilt(b, a, y_value)
+    temp_z = signal.filtfilt(b, a, z_value)
+
+    hp_x = signal.filtfilt(d, c, temp_x)
+    hp_y = signal.filtfilt(d, c, temp_y)
+    hp_z = signal.filtfilt(d, c, temp_z)
+
 
     global norm
-    norm = math.sqrt(x*x+y*y+z*z)
-    if norm < 0.2:
-        return
-
-    x_value.append(x)
-    y_value.append(y)
-    z_value.append(z)
+    norm = math.sqrt(hp_x[-1]*hp_x[-1] + hp_y[-1]*hp_y[-1] + hp_z[-1]*hp_z[-1])
+    # if norm < 1:
+    #     return
 
     global v_x, v_y, v_z
     global v_hp_x, v_hp_y, v_hp_z
     global vv_x, vv_y, vv_z
-    vv_x = v_x[-1] + x *timeDiff
-    vv_y = v_y[-1] + y *timeDiff
-    vv_z = v_z[-1] + z *timeDiff
+
+    temp = 0.05
+    tempH = 10
+    # vv_x = v_x[-1] + hp_x[-1]if tempH > norm > temp else v_x[-1]*0.9
+    # vv_y = v_y[-1] + hp_y[-1] if tempH > norm > temp else v_y[-1]*0.9
+    # vv_z = v_z[-1] + hp_z[-1] if tempH > norm > temp else v_z[-1]*0.9
+    vv_x = v_x[-1] + hp_x[-1]/math.log2(norm*(2/temp)) if tempH > norm > temp else v_x[-1]*0.9
+    vv_y = v_y[-1] + hp_y[-1]/math.log2(norm*(2/temp)) if tempH > norm > temp else v_y[-1]*0.9
+    vv_z = v_z[-1] + hp_z[-1]/math.log2(norm*(2/temp)) if tempH > norm > temp else v_z[-1]*0.9
+
+    if vv_x*v_x[-30] < -0.2:
+        vv_x *= 0.5
+    if vv_y*v_y[-30] < -0.2:
+        vv_y *= 0.5
+    if vv_z*v_z[-30] < -0.2:
+        vv_z *= 0.5
+
+    # vv_x = v_x[-1] + x *timeDiff
+    # vv_y = v_y[-1] + y *timeDiff
+    # vv_z = v_z[-1] + z *timeDiff
+
     v_x = np.append(v_x, vv_x)
     v_y = np.append(v_y, vv_y)
     v_z = np.append(v_z, vv_z)
-    v_hp_x = signal.filtfilt(b, a, v_x)
-    v_hp_y = signal.filtfilt(b, a, v_y)
-    v_hp_z = signal.filtfilt(b, a, v_z)    
+
+    v_hp_x = signal.filtfilt(f, e, v_x)
+    v_hp_y = signal.filtfilt(f, e, v_y)
+    v_hp_z = signal.filtfilt(f, e, v_z) 
+
+    # v_temp_x = signal.filtfilt(b, a, v_x)
+    # v_temp_y = signal.filtfilt(b, a, v_y)
+    # v_temp_z = signal.filtfilt(b, a, v_z) 
+    # v_hp_x = signal.filtfilt(d, c, v_temp_x)
+    # v_hp_y = signal.filtfilt(d, c, v_temp_y)
+    # v_hp_z = signal.filtfilt(d, c, v_temp_z)  
+     
+    # global norm
+    norm = math.sqrt(v_x[-1]*v_x[-1] + v_y[-1]*v_y[-1] + v_z[-1]*v_z[-1])  
 
     global p_x, p_y, p_z
     global p_hp_x, p_hp_y, p_hp_z
     global pp_x, pp_y, pp_z
 
+    # # Version 0
+    # pp_x = p_x[-1] + v_x[-1]
+    # pp_y = p_y[-1] + v_y[-1]
+    # pp_z = p_z[-1] + v_z[-1]
+
+    # pp_x = p_x[-1] + v_x[-1] if norm > 0.1 else p_x[-1]
+    # pp_y = p_y[-1] + v_y[-1] if norm > 0.1 else p_y[-1]
+    # pp_z = p_z[-1] + v_z[-1] if norm > 0.1 else p_z[-1]
+
+    # Version 1
+    pp_x = p_x[-1] + v_hp_x[-1]
+    pp_y = p_y[-1] + v_hp_y[-1]
+    pp_z = p_z[-1] + v_hp_z[-1]
+    
+    # Version 2
     # pp_x = p_x[-1] + v_hp_x[-1] if abs(v_hp_x[-1])>0.2 else p_x[-1]
     # pp_y = p_y[-1] + v_hp_y[-1] if abs(v_hp_y[-1])>0.2 else p_y[-1]
     # pp_z = p_z[-1] + v_hp_z[-1] if abs(v_hp_z[-1])>0.6 else p_z[-1]
 
-    pp_x = p_x[-1] + v_hp_x[-1] *timeDiff
-    pp_y = p_y[-1] + v_hp_y[-1] *timeDiff
-    pp_z = p_z[-1] + v_hp_z[-1] *timeDiff
+    # Version 3
+    # pp_x = p_x[-1] + v_hp_x[-1] *timeDiff
+    # pp_y = p_y[-1] + v_hp_y[-1] *timeDiff
+    # pp_z = p_z[-1] + v_hp_z[-1] *timeDiff
 
     p_x = np.append(p_x, pp_x)
     p_y = np.append(p_y, pp_y)
     p_z = np.append(p_z, pp_z)
-    # p_hp_x = signal.filtfilt(d, c, p_x)
-    # p_hp_y = signal.filtfilt(d, c, p_y)
-    # p_hp_z = signal.filtfilt(d, c, p_z)
+
+    p_hp_x = signal.filtfilt(d, c, p_x)
+    p_hp_y = signal.filtfilt(d, c, p_y)
+    p_hp_z = signal.filtfilt(d, c, p_z)
 
     # print("{:.2f}".format(p_hp_x[-1]))
 
     # if len(x_value)>20:
-    x_value.pop(0)
-    y_value.pop(0)
-    z_value.pop(0)
+    # x_value.pop(0)
+    # y_value.pop(0)
+    # z_value.pop(0)
+    np.delete(x_value, 0)
+    np.delete(y_value, 0)
+    np.delete(z_value, 0)
 
     np.delete(v_x, 0)
     np.delete(v_y, 0)
     np.delete(v_z, 0)
-    np.delete(v_hp_x, 0)
-    np.delete(v_hp_y, 0)
-    np.delete(v_hp_z, 0)
+    # np.delete(v_hp_x, 0)
+    # np.delete(v_hp_y, 0)
+    # np.delete(v_hp_z, 0)
     # v_x = v_x[1:]
     # v_y = v_y[1:]
     # v_z = v_z[1:]
@@ -135,6 +211,7 @@ def getPos(x, y, z):
     np.delete(p_x, 0)
     np.delete(p_y, 0)
     np.delete(p_z, 0)
+
     # np.delete(p_hp_x, 0)
     # np.delete(p_hp_y, 0)
     # np.delete(p_hp_z, 0)
@@ -165,9 +242,9 @@ def notification_handler(sender, dataList):
     global counter
     global debug
     """Simple notification handler which prints the data received."""
-    num = len(dataList)//20
+    length = len(dataList)//20
 
-    for i in range(num):
+    for i in range(length):
         data = dataList[i*20:(i+1)*20]
         if debug:
             print("{0}: {1}".format(counter, binascii.hexlify(data)))
@@ -188,9 +265,15 @@ def notification_handler(sender, dataList):
 
             global p_x, p_y, p_z
             global p_hp_x, p_hp_y, p_hp_z, norm, timeDiff
-            if counter%80 == 0:
+            global v_hp_x, v_hp_y, v_hp_z
+            global fs, fdis
+            if counter%(fs//fdis) == 0:
                 # PRINT OUTPUT
-                print("x: {:.2f}, y: {:.2f}, z: {:.2f}, n: {:.2f}, t: {:.5f}".format(p_x[-1], p_y[-1], p_z[-1], norm, timeDiff))
+                # print("x: {:.2f}, y: {:.2f}, z: {:.2f}, n: {:.2f}, t: {:.5f}".format(p_hp_x[-1], p_hp_y[-1], p_hp_z[-1], norm, timeDiff))
+                print("Pos x: {:.2f}, y: {:.2f}, z: {:.2f}, n: {:.2f}, t: {:.5f}".format(p_x[-1], p_y[-1], p_z[-1], norm, timeDiff))
+                # print("Vec x: {:.2f}, y: {:.2f}, z: {:.2f}".format(v_x[-1], v_y[-1], v_z[-1]))
+                # print("Filtered Vec x: {:.2f}, y: {:.2f}, z: {:.2f}".format(v_hp_x[-1], v_hp_y[-1], v_hp_z[-1]))
+                # print("Filtered Acc x: {:.2f}, y: {:.2f}, z: {:.2f}".format(hp_x[-1], hp_y[-1], hp_z[-1]))
                 if s!= None: 
                     m = {'x': p_hp_x[-1], 'y': p_hp_y[-1], 'z': p_hp_z[-1]}
                     data = json.dumps(m) 
@@ -219,6 +302,9 @@ async def main(address):
 
         global d, c
         d, c = filterLW()
+
+        global f, e
+        f, e = filterHG2()
 
         await client.start_notify(13, notification_handler)
 
