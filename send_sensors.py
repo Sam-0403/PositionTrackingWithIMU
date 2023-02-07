@@ -1,11 +1,9 @@
 from bleak import BleakScanner, BLEDevice, BleakClient
 from modules.server import SocketServer
-# from console.utils import wait_key
 
 import time
 import asyncio
 import aioconsole
-import socket
 import threading
 
 from typing import (
@@ -286,6 +284,16 @@ async def get_input():
                 await aioconsole.aprint(quat)
 
 async def main():
+    """
+    Instructions:
+        --------
+        1. Open all ble devices.
+        2. Set up the device name in scan function
+        3. Type: `e` to explore each scanned device services, `other` to pass           
+        4. Input a list to select devices to connect
+        5. Type: `q` to quit, `ls` to list devices_to_connect, `d` to show buffer data
+        --------
+    """
     global devices_to_connect, clients
 
     loop = asyncio.get_event_loop()
