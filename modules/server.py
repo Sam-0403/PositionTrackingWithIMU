@@ -54,7 +54,7 @@ class SocketServer():
    #client handler :one of these loops is running for each thread/player   
     def playerHandler(self, client_socket):
         #send welcome msg to new client
-        client_socket.send(bytes('{"type": "bet","value": "1"}', 'UTF-8'))
+        # client_socket.send(bytes('{"type": "bet","value": "1"}', 'UTF-8'))
         while self.is_reading:
             data = client_socket.recv(BUFFER_SIZE)
             if not data: 
@@ -70,9 +70,13 @@ class SocketServer():
         #client_socket.close() #do we close the socket when the program ends? or for ea client thead?
 
     def broadcast(self, message):
-
         for c in self.CLIENTS:
-            c.send(message.encode("utf-8"))
+            try:
+                c.send(message.encode("utf-8"))
+            except socket.error:                
+                c.close()  # closing the socket connection
+                self.CLIENTS.remove(c)  # removing the socket from the active connections list
+
 
     def _broadcast(self):        
         for sock in self.CLIENTS:           

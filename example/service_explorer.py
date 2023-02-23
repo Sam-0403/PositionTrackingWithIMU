@@ -8,7 +8,7 @@ from bleak import BleakScanner
 
 logger = logging.getLogger(__name__)
 
-DEVICE_NAME = "WT901BLE67"
+DEVICE_NAME = "SamPhone"
 
 async def main():
     device = await BleakScanner.find_device_by_filter(
